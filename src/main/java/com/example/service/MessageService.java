@@ -6,10 +6,11 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.exception.*;
+
 import com.example.entity.Account;
 import com.example.entity.Message;
 import com.example.repository.MessageRepository;
-import com.example.service.AccountService;
 
 @Service
 public class MessageService {
@@ -27,11 +28,16 @@ public class MessageService {
      * 
     */
     public Message create(Message bodyMessage) {
-        if (bodyMessage.getMessageText() == null) {return null;}
-        if (bodyMessage.getMessageText().length() > 255) {return null;}
+        if (bodyMessage.getMessageText().isBlank()
+                || bodyMessage == null
+                || bodyMessage.getMessageText().length() > 255) {
+            throw new InvalidMessageException("Error: Message is not valid!");
+        }
 
         Account account = accountService.findByAccountId(bodyMessage.getPostedBy());
-        if (account == null) { return null; }
+        if (account == null) { 
+            throw new InvalidAccountException("Error: Poster needs to exist!");
+         }
 
         return messageRepository.save(bodyMessage);
     }
@@ -57,10 +63,8 @@ public class MessageService {
      * 
      * @return
      */
-    public Message getMessageById(int messageId) {
-        Optional<Message> optionalMessage = messageRepository.findByMessageId(messageId);
-        if (!optionalMessage.isPresent()) { return null; }
-        return optionalMessage.get();
+    public Message get(int messageId) {
+        return messageRepository.findByMessageId(messageId).orElse(null);
     }
 
     /**
@@ -73,44 +77,37 @@ public class MessageService {
      * @return
      */
     public int update(int messageId, Message bodyMessage) {
-
         Optional<Message> optionalMessage = messageRepository.findByMessageId(messageId);
-
-        if (optionalMessage.isPresent()) {
-            Boolean modified = false;
-            Message oldMessage = optionalMessage.get();
-
-            // message is updated?
-            if ((bodyMessage.getMessageText() != null) &&
-                    (bodyMessage.getMessageText().length() < 255)) {
-                oldMessage.setMessageText(bodyMessage.getMessageText());
-                modified = true;
-            }
-
-            // Time is updated?
-            if (bodyMessage.getTimePostedEpoch() > 0) { 
-                oldMessage.setTimePostedEpoch(bodyMessage.getTimePostedEpoch());
-                modified = true;
-            }
-
-            // Poster is updated?
-            if (bodyMessage.getPostedBy() != oldMessage.getPostedBy()) {
-                oldMessage.setPostedBy(oldMessage.getPostedBy());
-                modified = true;
-            }
-
-            if (!modified) {
-                return 0;
-            }
-
-            messageRepository.save(oldMessage);
+        if (!optionalMessage.isPresent()) {
+            create(bodyMessage);
             return 1;
-
-        } else {
-            // Not a message, create it
-            throw new UnsupportedOperationException("Unimplemented method 'update'");
         }
-        // throw new UnsupportedOperationException("Unimplemented method 'update'");
+
+        Message existingMessage = optionalMessage.get();
+
+        // Check accounts
+        Account newAccount = accountService.findByAccountId(bodyMessage.getPostedBy());
+        Account oldAccount = accountService.findByAccountId(existingMessage.getPostedBy());
+        if (newAccount != oldAccount || newAccount == null) {
+            throw new InvalidAccountException("Error: Patcher needs to be the same");
+        }
+
+        // Check message
+        String messageText = bodyMessage.getMessageText();
+        if ((messageText.isBlank()) || (messageText.length() > 255)) {
+            throw new InvalidMessageException("Error: Message structure incorrect!");
+        }
+        existingMessage.setMessageText(bodyMessage.getMessageText());
+
+        // Check time
+        long existingTime = existingMessage.getTimePostedEpoch();
+        long newTime = bodyMessage.getTimePostedEpoch();
+        if ((newTime > 0) || (existingTime < newTime)) {
+            existingMessage.setTimePostedEpoch(bodyMessage.getTimePostedEpoch());
+        }
+
+        messageRepository.save(existingMessage);
+        return 1;
     }
 
     /**
@@ -121,7 +118,9 @@ public class MessageService {
      * @return
      */
     public int delete(int messageId) {
-        if (!messageRepository.existsById(messageId)) { return 0; }
+        if (!messageRepository.existsById(messageId)) { 
+            throw new MessageNotFoundException("Error: Message not Found!");
+        }
         messageRepository.deleteById(messageId);
         return 1;
     }

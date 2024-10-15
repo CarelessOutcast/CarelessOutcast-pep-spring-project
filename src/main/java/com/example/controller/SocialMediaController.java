@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.example.entity.Account;
 import com.example.entity.Message;
+import com.example.exception.*;
 import com.example.service.AccountService;
 import com.example.service.MessageService;
 
@@ -42,12 +43,13 @@ public class SocialMediaController {
      * (Unauthorized)
      */
     @PostMapping(value="/login")
-    public ResponseEntity<Account> postLogin(@RequestBody Account bodyAccount) {
-        Account account = accountService.get(bodyAccount);
-        if (account) {
+    public ResponseEntity<?> postLogin(@RequestBody Account bodyAccount) {
+        try {
+            Account account = accountService.get(bodyAccount);
             return ResponseEntity.status(200).body(account);
+        } catch (UnauthorizedAccountException e) {
+            return ResponseEntity.status(401).body("Invalid Credentials");
         } 
-        return ResponseEntity.status(401);
     }
 
     /*
@@ -70,14 +72,17 @@ public class SocialMediaController {
      * 
      */
     @PostMapping(value="/register")
-    public ResponseEntity<Account> postRegistration(@RequestBody Account bodyAccount) {
-        Account account = accountService.create(bodyAccount);
-        if (account) {
+    public ResponseEntity<?> postRegistration(@RequestBody Account bodyAccount) {
+        try {
+            Account account = accountService.create(bodyAccount);
             return ResponseEntity.status(200).body(account);
-        } else if (account) {
+
+        } catch (DuplicationUsernameException e) { 
             return ResponseEntity.status(409).body("Conflict");
+
+        } catch (InvalidAccountException e) { 
+            return ResponseEntity.status(400).body("Client Error");
         }
-        return ResponseEntity.status(400).body("Client Error");
     }
 
     /*
@@ -99,12 +104,15 @@ public class SocialMediaController {
      * 
      */
     @PostMapping(value="/messages")
-    public ResponseEntity<Message> postMessage(@RequestBody Message bodyMessage) {
-        Message message = messageService.create(bodyMessage);
-        if (message) {
+    public ResponseEntity<?> postMessage(@RequestBody Message bodyMessage) {
+        try {
+            Message message = messageService.create(bodyMessage);
             return ResponseEntity.status(200).body(message);
+        } catch (InvalidMessageException e) {
+            return ResponseEntity.status(400).body("Client error");
+        } catch (InvalidAccountException e) {
+            return ResponseEntity.status(500).body("Account error");
         }
-        return ResponseEntity.status(400).body("Client error");
     }
 
     /*
@@ -117,7 +125,7 @@ public class SocialMediaController {
      * is the default.
      */
     @GetMapping(value="/messages")
-    public ResponseEntity<List<Message>> getMessages() {
+    public ResponseEntity<?> getMessages() {
         List<Message> messages = messageService.get();
         return ResponseEntity.status(200).body(messages);
     }
@@ -132,8 +140,8 @@ public class SocialMediaController {
      * 200, which is the default.
      */
     @GetMapping(value="/messages/{messageId}")
-    public ResponseEntity<Message> getMessage(@PathVariable int messageId) {
-        Message message = MessageService.getMessageById(messageId);
+    public ResponseEntity<?> getMessage(@PathVariable int messageId) {
+        Message message = messageService.get(messageId);
         return ResponseEntity.status(200).body(message);
     }
 
@@ -156,13 +164,16 @@ public class SocialMediaController {
      * status should be 400. (Client error)
      * 
      */
-    @PutMapping(value="/messages/{messageId}") 
-    public ResponseEntity<Message> putMessage(@PathVariable int messageId, @RequestBody Message bodyMessage) {
-        int numUpdated = messageService.update(messageId, bodyMessage);
-        if (numUpdated) {
+    @PatchMapping(value="/messages/{messageId}") 
+    public ResponseEntity<?> patchMessage(@PathVariable int messageId, @RequestBody Message bodyMessage) {
+        try {
+            int numUpdated = messageService.update(messageId, bodyMessage);
             return ResponseEntity.status(200).body("modified:"+numUpdated);
+        } catch (InvalidMessageException e) {
+            return ResponseEntity.status(400).body("Client Error");
+        } catch (InvalidAccountException e) {
+            return ResponseEntity.status(400).body("Client Error");
         }
-        return ResponseEntity.status(400).body("Client Error");
     }
 
     /*
@@ -180,12 +191,13 @@ public class SocialMediaController {
      * the same type of response.
      */
     @DeleteMapping(value="/messages/{messageId}") 
-    public ResponseEntity<Void> deleteMessage(@PathVariable int messageId) {
-        int numUpdated = messageService.delete(messageId);
-        if (numUpdated) {
-            return ResponseEntity.status(200).body("deleted:"+numUpdated);
+    public ResponseEntity<?> deleteMessage(@PathVariable int messageId) {
+        try {
+            int numUpdated = messageService.delete(messageId);
+            return ResponseEntity.status(200).body(numUpdated);
+        } catch (MessageNotFoundException e) {
+            return ResponseEntity.status(200).body("");
         }
-        return ResponseEntity.status(400).body("Client Error");
     }
 
     /*
@@ -197,8 +209,8 @@ public class SocialMediaController {
      * It is expected for the list to simply be empty if there are no messages. The
      * response status should always be 200, which is the default.
      */
-    @GetMapping(value="/accounts/{accountId}/messages") 
-    public ResponseEntity<List<Message>> getAccountMessages(@PathVariable int accountId){
+    @GetMapping(value = "/accounts/{accountId}/messages")
+    public ResponseEntity<?> getAccountMessages(@PathVariable int accountId) {
         List<Message> messages = messageService.getMessageByUserId(accountId);
         return ResponseEntity.status(200).body(messages);
     }

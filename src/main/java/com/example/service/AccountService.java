@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.exception.*;
 import com.example.entity.Account;
 import com.example.repository.AccountRepository;
 
@@ -25,12 +26,9 @@ public class AccountService {
         String username = bodyAccount.getUsername();
         String password = bodyAccount.getPassword();
 
-        Account account = isAccount(username);
-        if (account == null) {
-            return null;
-        }
-        if (account.getPassword() != password) {
-            return null;
+        Account account = accountRepository.findByUsername(username).orElse(null);
+        if (account == null || !account.getPassword().equals(password)) {
+            throw new UnauthorizedAccountException("Error: Account password is incorrect");
         }
 
         return account;
@@ -48,31 +46,29 @@ public class AccountService {
         String username = bodyAccount.getUsername();
         String password = bodyAccount.getPassword();
 
-        if (isValidPassword(password) && isValidUsername(username)) {
-            Account account = accountRepository.save(bodyAccount);
-            if (account != null) {
-                return account;
-            }
+        if (accountExists(username)) {
+            throw new DuplicationUsernameException("Error: Duplicate Username found!");
         }
-        return null;
-    }
-    private Account isAccount(String username) {
-        Optional<Account> optionalAccount= accountRepository.findByUsername(username);
-        return (optionalAccount.isPresent()) ? optionalAccount.get() : null;
-    }
-    private Boolean isValidUsername(String username) {
-        // TODO: Add any extra username validation
-        return (username.length() > 0);
-    }
+        if (!isValidPassword(password) || !isValidUsername(username)){
+            throw new InvalidAccountException("Error: Invalid account structure");
+        }
 
-    private Boolean isValidPassword(String password) {
-        // TODO: Add any extra password validation
-        return (password.length() >= 4);
-
+        Account account = accountRepository.save(bodyAccount);
+        return account;
     }
 
     public Account findByAccountId(Integer postedBy) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'findByAccountId'");
+        return accountRepository.findByAccountId(postedBy).orElse(null);
     }
+
+    private boolean accountExists(String username) {
+        return accountRepository.findByUsername(username).isPresent();
+    }
+    private boolean isValidUsername(String username) {
+        return (username.length() > 0);
+    }
+    private boolean isValidPassword(String password) {
+        return (password.length() >= 4);
+    }
+
 }
