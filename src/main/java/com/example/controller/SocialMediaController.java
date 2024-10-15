@@ -111,7 +111,7 @@ public class SocialMediaController {
         } catch (InvalidMessageException e) {
             return ResponseEntity.status(400).body("Client error");
         } catch (InvalidAccountException e) {
-            return ResponseEntity.status(500).body("Account error");
+            return ResponseEntity.status(400).body("Account error");
         }
     }
 
@@ -168,7 +168,7 @@ public class SocialMediaController {
     public ResponseEntity<?> patchMessage(@PathVariable int messageId, @RequestBody Message bodyMessage) {
         try {
             int numUpdated = messageService.update(messageId, bodyMessage);
-            return ResponseEntity.status(200).body("modified:"+numUpdated);
+            return ResponseEntity.status(200).body(numUpdated);
         } catch (InvalidMessageException e) {
             return ResponseEntity.status(400).body("Client Error");
         } catch (InvalidAccountException e) {

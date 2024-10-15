@@ -1,7 +1,6 @@
 package com.example.service;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,34 +76,18 @@ public class MessageService {
      * @return
      */
     public int update(int messageId, Message bodyMessage) {
-        Optional<Message> optionalMessage = messageRepository.findByMessageId(messageId);
-        if (!optionalMessage.isPresent()) {
-            create(bodyMessage);
-            return 1;
+        Message existingMessage = messageRepository.findByMessageId(messageId).orElse(null);
+        
+        if (existingMessage == null) {
+            throw new InvalidMessageException("Error; Message need to exist!");
         }
-
-        Message existingMessage = optionalMessage.get();
-
-        // Check accounts
-        Account newAccount = accountService.findByAccountId(bodyMessage.getPostedBy());
-        Account oldAccount = accountService.findByAccountId(existingMessage.getPostedBy());
-        if (newAccount != oldAccount || newAccount == null) {
-            throw new InvalidAccountException("Error: Patcher needs to be the same");
-        }
-
-        // Check message
-        String messageText = bodyMessage.getMessageText();
-        if ((messageText.isBlank()) || (messageText.length() > 255)) {
-            throw new InvalidMessageException("Error: Message structure incorrect!");
-        }
-        existingMessage.setMessageText(bodyMessage.getMessageText());
-
-        // Check time
-        long existingTime = existingMessage.getTimePostedEpoch();
-        long newTime = bodyMessage.getTimePostedEpoch();
-        if ((newTime > 0) || (existingTime < newTime)) {
-            existingMessage.setTimePostedEpoch(bodyMessage.getTimePostedEpoch());
-        }
+        
+         // Check message
+         String messageText = bodyMessage.getMessageText();
+         if ((messageText.isBlank()) || (messageText.length() > 255)) {
+             throw new InvalidMessageException("Error: Message structure incorrect!");
+         }
+         existingMessage.setMessageText(bodyMessage.getMessageText());
 
         messageRepository.save(existingMessage);
         return 1;
